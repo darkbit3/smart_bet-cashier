@@ -9,10 +9,10 @@ const getApiBaseUrl = () => {
     return envUrl;
   }
 
-  // Fallback for production (Hardcoded as requested)
+  // Fallback (Hardcoded as requested)
   if (import.meta.env.MODE === 'production' || !import.meta.env.MODE) {
-    console.warn('VITE_API_BASE_URL missing, using production fallback');
-    return 'https://smart-bet-backend-7wntmhyi0-kaleabs-projects-1bd541ea.vercel.app';
+    console.warn('VITE_API_BASE_URL missing, using localhost fallback');
+    return 'http://localhost:5000';
   }
 
   // Fallback for development
