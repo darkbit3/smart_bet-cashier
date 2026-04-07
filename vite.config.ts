@@ -23,6 +23,12 @@ export default defineConfig({
   // Server configuration
   server: {
     port: 5175,
-    host: true
+    host: true,
+    allowedHosts: ['smart-bet-cashier.onrender.com']
+  },
+  
+  // Preview configuration
+  preview: {
+    allowedHosts: ['smart-bet-cashier.onrender.com']
   }
 })
