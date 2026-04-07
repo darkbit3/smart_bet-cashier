@@ -7,6 +7,7 @@ import { ApiConnectionStatus } from "../components/ApiConnectionStatus";
 import { useFormRateLimiter } from "../../utils/useFormRateLimiter";
 import { sanitizeString } from "../../utils/validation";
 import SessionManager from "../../utils/sessionManager";
+import { API_BASE_URL } from "../../config/apiConfig";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ export default function Login() {
         if (!sanitizedUsername || !sanitizedPassword) throw new Error("Please enter both username and password.");
         
 
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cashier/login`, {
+        const response = await fetch(`${API_BASE_URL}/api/cashier/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: sanitizedUsername, password: sanitizedPassword })

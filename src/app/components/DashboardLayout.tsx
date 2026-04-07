@@ -13,6 +13,7 @@ import { DollarSign, ArrowDownToLine, ArrowUpFromLine, Receipt, User, LogOut, Re
 import { toast } from "sonner";
 import { Loading, ButtonLoading, InlineLoading } from "../../components/Loading";
 import { useFormRateLimiter } from "../../utils/useFormRateLimiter";
+import { API_BASE_URL } from "../../config/apiConfig";
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -175,7 +176,7 @@ export function DashboardLayout() {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cashier/password`, {
+      const response = await fetch(`${API_BASE_URL}/api/cashier/password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

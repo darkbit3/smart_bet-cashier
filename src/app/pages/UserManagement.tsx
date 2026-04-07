@@ -7,6 +7,7 @@ import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Search, UserPlus, DollarSign, CreditCard, Users, RefreshCw, X, Check, Wallet, ArrowUpRight, ArrowDownLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE_URL } from "../../config/apiConfig";
 
 interface Player {
   id: number;
@@ -48,7 +49,7 @@ export default function UserManagement() {
     setCashierBalance(storedBalance ? parseFloat(storedBalance) : 5000);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cashier/playerlist`, {
+      const response = await fetch(`${API_BASE_URL}/api/cashier/playerlist`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -82,7 +83,7 @@ export default function UserManagement() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('cashier_token');
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cashier/create/player`, {
+      const response = await fetch(`${API_BASE_URL}/api/cashier/create/player`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
