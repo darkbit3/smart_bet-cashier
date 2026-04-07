@@ -1,0 +1,91 @@
+:root {
+  /* --- Clean & Easy Light Theme Matrix --- */
+  --app-background: #f8fafc;
+  --app-panel: #ffffff;
+  --app-border: #e2e8f0;
+  --app-primary: #0f172a;
+  --app-secondary: #475569;
+  --app-muted: #94a3b8;
+  --app-accent: #4f46e5; /* Indigo */
+  --app-accent-hover: #4338ca;
+  
+  /* --- Shadcn Compatibility Layer --- */
+  --background: var(--app-background);
+  --foreground: var(--app-primary);
+  --card: var(--app-panel);
+  --card-foreground: var(--app-primary);
+  --popover: var(--app-panel);
+  --popover-foreground: var(--app-primary);
+  --primary: var(--app-accent);
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: var(--app-primary);
+  --muted: #f1f5f9;
+  --muted-foreground: var(--app-muted);
+  --accent: #f1f5f9;
+  --accent-foreground: var(--app-accent);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: var(--app-border);
+  --input: var(--app-border);
+  --ring: var(--app-accent);
+  --radius: 0.75rem;
+}
+
+/* Tailwind v4 theme extension - defines app-* color tokens for utility class generation */
+@theme inline {
+  --color-app-background: var(--app-background);
+  --color-app-panel: var(--app-panel);
+  --color-app-white: #ffffff;
+  --color-app-border: var(--app-border);
+  --color-app-primary: var(--app-primary);
+  --color-app-secondary: var(--app-secondary);
+  --color-app-muted: var(--app-muted);
+  --color-app-accent: var(--app-accent);
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
+
+/* Base reset using plain CSS (avoids @apply linter warnings) */
+*,
+*::before,
+*::after {
+  border-color: var(--app-border);
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--app-background);
+  color: var(--app-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--app-accent) 10%, transparent);
+}
+
+/* Utility classes */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-soft {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+}
+
+.shadow-soft-lg {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+}

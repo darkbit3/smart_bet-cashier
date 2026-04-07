@@ -1,0 +1,860 @@
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, Loader2, User } from "lucide-react";
+import { toast } from "sonner";
+
+interface Transaction {
+  id: string;
+  type: "deposit" | "withdraw";
+  amount: number;
+  date: string;
+  status: "completed" | "pending";
+}
+
+interface Player {
+  id: string;
+  username: string;
+  phone_number: string;
+  balance: number;
+  withdrawable: number;
+  non_withdrawable: number;
+  bonus_balance: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}
+
+export default function TransactionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [balance, setBalance] = useState<number>(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  
+  // Phone number related states
+  const [depositPhone, setDepositPhone] = useState("");
+  const [withdrawPhone, setWithdrawPhone] = useState("");
+  const [depositSuggestions, setDepositSuggestions] = useState<Player[]>([]);
+  const [withdrawSuggestions, setWithdrawSuggestions] = useState<Player[]>([]);
+  const [showDepositSuggestions, setShowDepositSuggestions] = useState(false);
+  const [showWithdrawSuggestions, setShowWithdrawSuggestions] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [cashierUsername, setCashierUsername] = useState("");
+  const [phoneCheckResult, setPhoneCheckResult] = useState<any>(null);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+
+  // Phone number formatting and search functions
+  const formatPhoneNumber = (input: string): string => {
+    // Convert +2519 to 09
+    if (input.startsWith('+2519')) {
+      return '09' + input.substring(5);
+    }
+    // If user types 09, keep it
+    if (input.startsWith('09')) {
+      return input;
+    }
+    // If user types 9, convert to 09
+    if (input.startsWith('9') && input.length <= 9) {
+      return '0' + input;
+    }
+    return input;
+  };
+
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Allow exactly 10 digits starting with 09 or +251
+    const cleanPhone = phone.replace(/\D/g, '');
+    return cleanPhone.length === 10 && (
+      /^09\d{8}$/.test(cleanPhone) || 
+      /^\+2519\d{8}$/.test(cleanPhone)
+    );
+  };
+
+  // Search players by phone number using new API
+  const searchPlayers = async (query: string, isDeposit: boolean) => {
+    if (!query || query.length < 6) {
+      if (isDeposit) {
+        setDepositSuggestions([]);
+        setShowDepositSuggestions(false);
+      } else {
+        setWithdrawSuggestions([]);
+        setShowWithdrawSuggestions(false);
+      }
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      
+      // Normalize phone number - convert +251 format to 09 format for consistency
+      let normalizedQuery = query;
+      if (query.startsWith('+2519')) {
+        normalizedQuery = '09' + query.substring(5);
+      }
+      
+      // Call the new cashier deposit API to search player
+      const token = localStorage.getItem('cashier_token');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('http://localhost:3000/api/cashier/deposit/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phoneNumber: normalizedQuery
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const players = [data.data.player];
+        if (isDeposit) {
+          setDepositSuggestions(players);
+          setShowDepositSuggestions(true);
+        } else {
+          setWithdrawSuggestions(players);
+          setShowWithdrawSuggestions(true);
+        }
+      } else {
+        // If API fails, fallback to local storage for demo
+        const storedPlayers = localStorage.getItem('players');
+        let players = storedPlayers ? JSON.parse(storedPlayers) : [];
+        
+        if (query.length === 10 && validatePhoneNumber(query)) {
+          const exactMatches = players.filter((p: Player) => {
+            // Normalize both phone numbers for comparison
+            const playerPhone = p.phone_number.startsWith('+2519') 
+              ? '09' + p.phone_number.substring(5) 
+              : p.phone_number;
+            const normalizedPlayerPhone = p.phone_number.startsWith('+2519')
+              ? '09' + p.phone_number.substring(5)
+              : p.phone_number;
+            return normalizedPlayerPhone === normalizedQuery;
+          });
+          
+          if (exactMatches.length > 0) {
+            players = exactMatches;
+          } else {
+            const phoneExists = Math.random() > 0.5;
+            if (phoneExists) {
+              const mockPlayer: Player = {
+                id: Date.now().toString(),
+                username: 'found_user',
+                phone_number: '+251' + normalizedQuery.substring(2),
+                balance: 500,
+                withdrawable: 400,
+                non_withdrawable: 80,
+                bonus_balance: 20,
+                status: 'active',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                created_by: 'system'
+              };
+              players = [mockPlayer];
+            }
+          }
+        }
+        
+        if (isDeposit) {
+          setDepositSuggestions(players);
+          setShowDepositSuggestions(players.length > 0);
+        } else {
+          setWithdrawSuggestions(players);
+          setShowWithdrawSuggestions(players.length > 0);
+        }
+      }
+    } catch (error) {
+      console.error('Search players error:', error);
+      if (isDeposit) {
+        setDepositSuggestions([]);
+        setShowDepositSuggestions(false);
+      } else {
+        setWithdrawSuggestions([]);
+        setShowWithdrawSuggestions(false);
+      }
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handlePhoneInputChange = (value: string, isDeposit: boolean) => {
+    // Only process if it's digits and max 10 characters
+    const cleanValue = value.replace(/\D/g, '').slice(0, 10);
+    const formatted = formatPhoneNumber(cleanValue);
+    
+    if (isDeposit) {
+      setDepositPhone(formatted);
+      // Only check phone existence when we have exactly 10 digits
+      if (formatted.length === 10) {
+        checkPhoneNumberExists(formatted);
+        if (validatePhoneNumber(formatted)) {
+          searchPlayers(formatted, true);
+        }
+      } else {
+        setPhoneCheckResult(null);
+        setDepositSuggestions([]);
+        setShowDepositSuggestions(false);
+      }
+    } else {
+      setWithdrawPhone(formatted);
+      // Only check phone existence when we have exactly 10 digits
+      if (formatted.length === 10) {
+        checkPhoneNumberExists(formatted);
+        if (validatePhoneNumber(formatted)) {
+          searchPlayers(formatted, false);
+        }
+      } else {
+        setPhoneCheckResult(null);
+        setWithdrawSuggestions([]);
+        setShowWithdrawSuggestions(false);
+      }
+    }
+  };
+
+  const selectPlayer = (player: Player, isDeposit: boolean) => {
+    // Use the actual phone number from database (convert +2519 to 09 if needed)
+    let phoneNumber = player.phone_number;
+    if (phoneNumber.startsWith('+2519')) {
+      phoneNumber = '09' + phoneNumber.substring(5);
+    }
+    
+    console.log(`Selected player: ${player.username}, phone: ${phoneNumber}`);
+    
+    if (isDeposit) {
+      setDepositPhone(phoneNumber);
+      setShowDepositSuggestions(false);
+      setDepositSuggestions([]);
+      // Immediately set the phone check result to show the selected player
+      setPhoneCheckResult({
+        exists: true,
+        isOwnPlayer: player.created_by === cashierUsername,
+        player: player
+      });
+    } else {
+      setWithdrawPhone(phoneNumber);
+      setShowWithdrawSuggestions(false);
+      setWithdrawSuggestions([]);
+      // Immediately set the phone check result to show the selected player
+      setPhoneCheckResult({
+        exists: true,
+        isOwnPlayer: player.created_by === cashierUsername,
+        player: player
+      });
+    }
+  };
+
+  // Check if phone number exists
+  const checkPhoneNumberExists = async (phoneNumber: string) => {
+    if (!phoneNumber || phoneNumber.length < 9) {
+      setPhoneCheckResult(null);
+
+  useEffect(() => {
+    // Get cashier username from localStorage
+    const storedUser = localStorage.getItem("cashier_user");
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setCashierUsername(userData.username || '');
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+      }
+    }
+  }, [cashierUsername]);
+
+    // Load transactions from local storage
+    const storedTransactions = localStorage.getItem('transactions');
+    if (storedTransactions) {
+      try {
+        setTransactions(JSON.parse(storedTransactions));
+      } catch (error) {
+        console.error('Error parsing stored transactions:', error);
+      }
+    }
+
+    // Check URL params for auto-open
+    const action = searchParams.get("action");
+    const amount = searchParams.get("amount");
+
+    if (action === "deposit") {
+      if (amount) setDepositAmount(amount);
+      setShowDepositModal(true);
+      // Clear params
+      setSearchParams({});
+    } else if (action === "withdraw") {
+      if (amount) setWithdrawAmount(amount);
+      setShowWithdrawModal(true);
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handleDeposit = async () => {
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (!depositPhone || !validatePhoneNumber(depositPhone)) {
+      toast.error(`Invalid phone number: ${depositPhone}`);
+      return;
+    }
+
+    if (!phoneCheckResult || !phoneCheckResult.exists) {
+      toast.error("Player not found or invalid phone number");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Call the new cashier deposit API
+      const token = localStorage.getItem('cashier_token');
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch('http://localhost:3000/api/cashier/deposit/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          playerId: parseInt(phoneCheckResult.player.id),
+          amount: amount
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Update cashier balance locally (for now)
+        const currentBalance = parseFloat(localStorage.getItem('balance') || '5000');
+        const newBalance = currentBalance - amount;
+        localStorage.setItem('balance', newBalance.toString());
+        
+        // Create transaction record locally
+        const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+        const newTransaction = {
+          id: Date.now().toString(),
+          type: 'deposit',
+          amount: amount,
+          date: new Date().toISOString(),
+          status: 'completed',
+          phoneNumber: depositPhone,
+          playerId: phoneCheckResult.player.id,
+          playerName: phoneCheckResult.player.username
+        };
+        transactions.push(newTransaction);
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        
+        // Update transactions state
+        setTransactions(transactions);
+        
+        toast.success(`Deposited ${amount.toFixed(2)} ETB to ${phoneCheckResult.player.username} successfully!`);
+        setDepositAmount("");
+        setDepositPhone("");
+        setShowDepositModal(false);
+        setPhoneCheckResult(null);
+        
+        // Trigger global balance refresh
+        window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+          detail: { newBalance: newBalance }
+        }));
+      } else {
+        toast.error(data.message || 'Failed to process deposit');
+      }
+    } catch (error) {
+      console.error('Deposit error:', error);
+      toast.error('Failed to process deposit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (!withdrawPhone || !validatePhoneNumber(withdrawPhone)) {
+      toast.error(`Invalid phone number: ${withdrawPhone}`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // API removed - simulate withdraw with local storage
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get current cashier balance
+      const currentBalance = parseFloat(localStorage.getItem('balance') || '5000');
+      const newBalance = currentBalance + amount;
+      
+      // Update cashier balance
+      localStorage.setItem('balance', newBalance.toString());
+      
+      // Create transaction record
+      const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+      const newTransaction = {
+        id: Date.now().toString(),
+        type: 'withdraw',
+        amount: amount,
+        date: new Date().toISOString(),
+        status: 'completed',
+        phoneNumber: withdrawPhone
+      };
+      transactions.push(newTransaction);
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+      
+      // Update transactions state
+      setTransactions(transactions);
+      
+      toast.success(`Withdrawn ${amount.toFixed(2)} ETB successfully!`);
+      setWithdrawAmount("");
+      setWithdrawPhone("");
+      setShowWithdrawModal(false);
+      
+      // Trigger global balance refresh
+      window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+        detail: { newBalance: newBalance }
+      }));
+    } catch (error: any) {
+      console.error('Withdraw error:', error);
+      toast.error('Withdrawal failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl mb-2">Transactions</h1>
+          <p className="text-muted-foreground">Manage deposits and withdrawals</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowDepositModal(true)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <ArrowDownToLine className="h-4 w-4 mr-2" />
+            Deposit
+          </Button>
+          <Button
+            onClick={() => setShowWithdrawModal(true)}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            <ArrowUpFromLine className="h-4 w-4 mr-2" />
+            Withdraw
+          </Button>
+        </div>
+      </div>
+
+      {/* Transaction History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Transaction History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="all">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="deposits">Deposits</TabsTrigger>
+              <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all" className="space-y-3 mt-4">
+              {transactions.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No transactions yet</p>
+              ) : (
+                transactions.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      {transaction.type === "deposit" ? (
+                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                          <TrendingUp className="h-5 w-5 text-green-600" />
+                        </div>
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <TrendingDown className="h-5 w-5 text-orange-600" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="capitalize font-medium">{transaction.type}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(transaction.date).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <p
+                      className={`text-lg ${
+                        transaction.type === "deposit" ? "text-green-600" : "text-orange-600"
+                      }`}
+                    >
+                      {transaction.type === "deposit" ? "+" : "-"}$
+                      {transaction.amount.toFixed(2)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="deposits" className="space-y-3 mt-4">
+              {transactions.filter((t) => t.type === "deposit").length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No deposits yet</p>
+              ) : (
+                transactions
+                  .filter((t) => t.type === "deposit")
+                  .map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                          <TrendingUp className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Deposit</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(transaction.date).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-lg text-green-600">
+                        +${transaction.amount.toFixed(2)}
+                      </p>
+                    </div>
+                  ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="withdrawals" className="space-y-3 mt-4">
+              {transactions.filter((t) => t.type === "withdraw").length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No withdrawals yet</p>
+              ) : (
+                transactions
+                  .filter((t) => t.type === "withdraw")
+                  .map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <TrendingDown className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Withdrawal</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(transaction.date).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-lg text-orange-600">
+                        -${transaction.amount.toFixed(2)}
+                      </p>
+                    </div>
+                  ))
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Deposit Modal */}
+      <Dialog open={showDepositModal} onOpenChange={setShowDepositModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowDownToLine className="h-5 w-5 text-green-600" />
+              Deposit Funds
+            </DialogTitle>
+            <DialogDescription>Add funds to player account (100% goes to non-withdrawable balance)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2 relative">
+              <Label htmlFor="deposit-phone">Phone Number</Label>
+              <Input
+                id="deposit-phone"
+                type="tel"
+                placeholder="09xxxxxxxx (10 digits only)"
+                value={depositPhone}
+                onChange={(e) => {
+                  // Only allow digits and max 10 characters
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  handlePhoneInputChange(value, true);
+                }}
+                maxLength={10}
+                className={validatePhoneNumber(depositPhone) ? "border-green-500" : depositPhone.length === 10 ? "border-red-500" : ""}
+              />
+              {showDepositSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {loading ? (
+                    <div className="p-3 text-center">
+                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                      <span className="text-sm text-gray-500">Searching...</span>
+                    </div>
+                  ) : depositSuggestions.length > 0 ? (
+                    depositSuggestions.map((player) => (
+                      <div
+                        key={player.id}
+                        className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                        onClick={() => selectPlayer(player, true)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <p className="font-medium">{player.username}</p>
+                            <p className="text-sm text-gray-500">{player.phone_number}</p>
+                            <p className="text-xs text-blue-600">Balance: {player.balance.toFixed(2)} ETB</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center text-gray-500">
+                      No players found
+                    </div>
+                  )}
+                </div>
+              )}
+              {depositPhone && depositPhone.length === 10 && !validatePhoneNumber(depositPhone) && (
+                <p className="text-xs text-red-500">
+                  Phone number: {depositPhone} (Must start with 09)
+                </p>
+              )}
+              {depositPhone && depositPhone.length < 10 && (
+                <p className="text-xs text-orange-500">
+                  Enter 10 digits (09xxxxxxxx)
+                </p>
+              )}
+              {checkingPhone && (
+                <div className="p-3 rounded-lg border bg-blue-50 border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <p className="text-sm text-blue-800">Checking phone number...</p>
+                  </div>
+                </div>
+              )}
+              {phoneCheckResult && !checkingPhone && (
+                <div className={`p-3 rounded-lg border ${
+                  phoneCheckResult.exists 
+                    ? phoneCheckResult.isOwnPlayer 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-blue-50 border-blue-200'
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  {phoneCheckResult.exists ? (
+                    phoneCheckResult.isOwnPlayer ? (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-green-600" />
+                        <div>
+                          <p className="text-sm font-medium text-green-800">
+                            Player Found: {phoneCheckResult.player.username}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            Phone: {depositPhone || withdrawPhone}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            Balance: {phoneCheckResult.player.balance.toFixed(2)} ETB
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-800">
+                            Player Found: {phoneCheckResult.player.username}
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            Phone: {depositPhone || withdrawPhone}
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            Balance: {phoneCheckResult.player.balance.toFixed(2)} ETB
+                          </p>
+                          <p className="text-xs text-blue-500">
+                            Created by: {phoneCheckResult.player.created_by}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 text-red-600">✗</div>
+                      <p className="text-sm text-red-800">Phone number not found</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deposit-amount">Amount</Label>
+              <Input
+                id="deposit-amount"
+                type="number"
+                placeholder="Enter amount"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label className="text-sm text-muted-foreground mb-2 block">Default Amounts</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button onClick={() => setDepositAmount("100")} variant="outline" size="sm">
+                  100
+                </Button>
+                <Button onClick={() => setDepositAmount("500")} variant="outline" size="sm">
+                  500
+                </Button>
+                <Button onClick={() => setDepositAmount("1000")} variant="outline" size="sm">
+                  1000
+                </Button>
+              </div>
+            </div>
+            <Button 
+              onClick={handleDeposit} 
+              className="w-full bg-green-600 hover:bg-green-700"
+              disabled={loading || !validatePhoneNumber(depositPhone) || !depositAmount || (phoneCheckResult && !phoneCheckResult.exists)}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirm Deposit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Modal */}
+      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpFromLine className="h-5 w-5 text-orange-600" />
+              Withdraw Funds
+            </DialogTitle>
+            <DialogDescription>Withdraw funds from player account (only from withdrawable balance)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2 relative">
+              <Label htmlFor="withdraw-phone">Phone Number</Label>
+              <Input
+                id="withdraw-phone"
+                type="tel"
+                placeholder="09xxxxxxxx (10 digits only)"
+                value={withdrawPhone}
+                onChange={(e) => {
+                  // Only allow digits and max 10 characters
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  handlePhoneInputChange(value, false);
+                }}
+                maxLength={10}
+                className={validatePhoneNumber(withdrawPhone) ? "border-green-500" : withdrawPhone.length === 10 ? "border-red-500" : ""}
+              />
+              {showWithdrawSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {loading ? (
+                    <div className="p-3 text-center">
+                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                      <span className="text-sm text-gray-500">Searching...</span>
+                    </div>
+                  ) : withdrawSuggestions.length > 0 ? (
+                    withdrawSuggestions.map((player) => (
+                      <div
+                        key={player.id}
+                        className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                        onClick={() => selectPlayer(player, false)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <p className="font-medium">{player.username}</p>
+                            <p className="text-sm text-gray-500">{player.phone_number}</p>
+                            <p className="text-xs text-orange-600">Withdrawable: {player.withdrawable.toFixed(2)} ETB</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center text-gray-500">
+                      No players found
+                    </div>
+                  )}
+                </div>
+              )}
+              {withdrawPhone && withdrawPhone.length === 10 && !validatePhoneNumber(withdrawPhone) && (
+                <p className="text-xs text-red-500">
+                  Phone number: {withdrawPhone} (Must start with 09)
+                </p>
+              )}
+              {withdrawPhone && withdrawPhone.length < 10 && (
+                <p className="text-xs text-orange-500">
+                  Enter 10 digits (09xxxxxxxx)
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="withdraw-amount">Amount</Label>
+              <Input
+                id="withdraw-amount"
+                type="number"
+                placeholder="Enter amount"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <Label className="text-sm text-muted-foreground mb-2 block">Default Amounts</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button onClick={() => setWithdrawAmount("100")} variant="outline" size="sm">
+                  100
+                </Button>
+                <Button onClick={() => setWithdrawAmount("500")} variant="outline" size="sm">
+                  500
+                </Button>
+                <Button onClick={() => setWithdrawAmount("1000")} variant="outline" size="sm">
+                  1000
+                </Button>
+              </div>
+            </div>
+            <Button 
+              onClick={handleWithdraw} 
+              className="w-full bg-orange-600 hover:bg-orange-700"
+              disabled={loading || !validatePhoneNumber(withdrawPhone) || !withdrawAmount}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirm Withdrawal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
