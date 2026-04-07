@@ -24,7 +24,14 @@ export default defineConfig({
   server: {
     port: 5175,
     host: true,
-    allowedHosts: ['smart-bet-cashier.onrender.com']
+    allowedHosts: ['smart-bet-cashier.onrender.com'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   
   // Preview configuration
