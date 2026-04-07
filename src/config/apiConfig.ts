@@ -9,20 +9,14 @@ const getApiBaseUrl = () => {
     return envUrl;
   }
 
-  // Fallback for development if environment variable is missing
-  if (import.meta.env.MODE === 'development') {
-    console.warn('VITE_API_BASE_URL is not defined, falling back to http://localhost:5000');
-    return 'http://localhost:5000';
+  // Fallback for production (Hardcoded as requested)
+  if (import.meta.env.MODE === 'production' || !import.meta.env.MODE) {
+    console.warn('VITE_API_BASE_URL missing, using production fallback');
+    return 'https://smart-bet-backend-7wntmhyi0-kaleabs-projects-1bd541ea.vercel.app';
   }
 
-  // In production, we need a valid URL. If it's missing, let's log use a sane default or throw.
-  // Actually, for Render, if the user hasn't set it, we could try to infer it if we knew the backend URL.
-  // But for now, let's just make it clear that it's missing.
-  console.error('CRITICAL: VITE_API_BASE_URL is not defined in environment variables.');
-  
-  // Return the current origin as a last resort, which might work if proxying is set up, 
-  // though that's unlikely in this setup.
-  return ''; 
+  // Fallback for development
+  return 'http://localhost:5000';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
