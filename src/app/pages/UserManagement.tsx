@@ -30,6 +30,7 @@ export default function UserManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   
   const [selectedUser, setSelectedUser] = useState<Player | null>(null);
   const [transactionAmount, setTransactionAmount] = useState("");
@@ -57,7 +58,11 @@ export default function UserManagement() {
         setUsers(data.data.players.map((p: any) => ({
           ...p,
           name: p.name || p.username,
-          phoneNumber: p.phoneNumber || p.phone_number || ''
+          phoneNumber: p.phoneNumber || p.phone_number || '',
+          balance: parseFloat(p.balance) || 0,
+          withdrawable: parseFloat(p.withdrawable) || 0,
+          non_withdrawable: parseFloat(p.non_withdrawable) || 0,
+          bonusBalance: parseFloat(p.bonusBalance) || 0
         })));
       }
     } catch (e) {
@@ -134,7 +139,7 @@ export default function UserManagement() {
       const newBal = type === 'deposit' ? cashierBalance - amount : cashierBalance + amount;
       localStorage.setItem('balance', newBal.toString());
       setCashierBalance(newBal);
-      toast.success(`${type === 'deposit' ? 'Refill' : 'Payout'} authorized: $${amount}`);
+      toast.success(`${type === 'deposit' ? 'Deposit' : 'Withdraw'} authorized: $${amount}`);
       setShowDepositModal(false);
       setShowWithdrawModal(false);
       setTransactionAmount("");
@@ -194,66 +199,87 @@ export default function UserManagement() {
             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
          </Button>
       </div>
-
-      {/* USER GRID */}
+      
+      {/* 🚀 PLAYER NODES - LIST VIEW */}
       {loading ? (
-         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3].map(i => <div key={i} className="h-48 rounded-[2.5rem] bg-slate-50 animate-pulse" />)}
+         <div className="space-y-4">
+            {[1,2,3].map(i => <div key={i} className="h-24 rounded-3xl bg-slate-50 animate-pulse" />)}
          </div>
       ) : (
-         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+         <div className="space-y-4">
             {filtered.map(user => (
-               <Card key={user.id} className="border-none shadow-soft rounded-[2.5rem] overflow-hidden group hover:shadow-xl transition-all duration-300">
-                  <div className="p-8 space-y-6">
-                     <div className="flex justify-between items-start">
-                        <div className="flex gap-4 items-center">
-                           <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-black text-lg">
-                              {user.username.charAt(0).toUpperCase()}
-                           </div>
-                           <div>
-                              <p className="font-black text-slate-900 tracking-tight">{user.username}</p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user.phoneNumber}</p>
-                           </div>
+               <div 
+                  key={user.id} 
+                  className="group relative bg-white border border-slate-100 hover:border-indigo-100 rounded-[2rem] p-4 transition-all duration-300 hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.05)] flex flex-col md:flex-row md:items-center justify-between gap-6"
+               >
+                  <div className="flex items-center gap-5">
+                     {/* Avatar Section */}
+                     <div className="relative">
+                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-black text-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                           {user.username.charAt(0).toUpperCase()}
                         </div>
-                        <Badge className="bg-emerald-50 text-emerald-600 text-[8px] font-black uppercase rounded-lg border-none">ACTIVE</Badge>
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-white transition-colors">
-                           <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Total Credit</p>
-                           <p className="text-lg font-black text-slate-900">${user.balance.toFixed(0)}</p>
-                        </div>
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 group-hover:bg-white transition-colors">
-                           <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Claimable</p>
-                           <p className="text-lg font-black text-emerald-600">${user.withdrawable.toFixed(0)}</p>
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm">
+                           <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
                         </div>
                      </div>
-
-                     <div className="grid grid-cols-2 gap-3 pt-2">
-                        <Button 
-                           onClick={() => { setSelectedUser(user); setShowDepositModal(true); }}
-                           className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
-                        >
-                           <ArrowUpRight size={16} /> Refill
-                        </Button>
-                        <Button 
-                           onClick={() => { setSelectedUser(user); setShowWithdrawModal(true); }}
-                           variant="outline"
-                           className="border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 rounded-xl h-12 font-bold flex items-center justify-center gap-2"
-                        >
-                           <ArrowDownLeft size={16} /> Payout
-                        </Button>
+                     
+                     {/* User Details */}
+                     <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                           <h3 className="font-black text-slate-900 text-xl tracking-tight leading-none">{user.username}</h3>
+                           <Badge className="bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase rounded-lg border-none px-2 py-0.5">Live</Badge>
+                           <button 
+                              onClick={() => { setSelectedUser(user); setShowDetailsModal(true); }}
+                              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all ml-auto md:ml-0"
+                           >
+                              <Eye size={22} />
+                           </button>
+                        </div>
+                        <p className="text-sm font-bold text-slate-400 mt-1 flex items-center gap-1.5 uppercase tracking-wider">
+                           {user.phoneNumber}
+                        </p>
                      </div>
                   </div>
-               </Card>
+
+                  {/* Financial Stats */}
+                  <div className="flex flex-1 items-center justify-between md:justify-end gap-8 lg:gap-16 px-2 md:px-0">
+                     <div className="space-y-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Balance</p>
+                        <p className="text-xl font-black text-slate-900 tracking-tight">${user.balance.toFixed(0)}</p>
+                     </div>
+                     <div className="space-y-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Withdrawable</p>
+                        <p className="text-xl font-black text-emerald-600 tracking-tight">${user.withdrawable.toFixed(0)}</p>
+                     </div>
+                  </div>
+
+                  {/* Operational Controls */}
+                  <div className="flex gap-3">
+                     <Button 
+                        onClick={() => { setSelectedUser(user); setShowDepositModal(true); }}
+                        className="flex-1 md:flex-none h-12 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95"
+                     >
+                        <ArrowUpRight size={18} /> 
+                        <span>Deposit</span>
+                     </Button>
+                     <Button 
+                        onClick={() => { setSelectedUser(user); setShowWithdrawModal(true); }}
+                        variant="outline"
+                        className="flex-1 md:flex-none h-12 px-6 border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                     >
+                        <ArrowDownLeft size={18} /> 
+                        <span>Withdraw</span>
+                     </Button>
+                  </div>
+               </div>
             ))}
          </div>
       )}
 
       {/* ➕ ADD PLAYER MODAL */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-         <DialogContent className="max-w-md rounded-[2.5rem] border-none p-0 overflow-hidden font-sans">
-            <div className="bg-indigo-600 p-10 text-white relative h-32 flex items-center">
+         <DialogContent className="max-w-xl w-[95vw] rounded-[2.5rem] border-none p-0 overflow-hidden font-sans max-h-[90vh] overflow-y-auto">
+            <div className="bg-indigo-600 p-10 text-white relative min-h-[140px] flex items-center">
                <h2 className="text-2xl font-black tracking-tight">Provision New Node</h2>
                <div className="absolute -bottom-6 right-10 w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center text-indigo-600">
                   <UserPlus size={32} />
@@ -312,9 +338,9 @@ export default function UserManagement() {
 
       {/* 💸 DEPOSIT MODAL */}
       <Dialog open={showDepositModal} onOpenChange={setShowDepositModal}>
-         <DialogContent className="max-w-md rounded-[2.5rem] border-none p-0 overflow-hidden font-sans">
-            <div className="bg-emerald-500 p-10 text-white relative h-32 flex items-center">
-               <h2 className="text-2xl font-black tracking-tight">Credit Refill</h2>
+         <DialogContent className="max-w-xl w-[95vw] rounded-[2.5rem] border-none p-0 overflow-hidden font-sans max-h-[90vh] overflow-y-auto">
+            <div className="bg-emerald-500 p-10 text-white relative min-h-[140px] flex items-center">
+               <h2 className="text-2xl font-black tracking-tight">Credit Deposit</h2>
                <div className="absolute -bottom-6 right-10 w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center text-emerald-500">
                   <ArrowUpRight size={32} />
                </div>
@@ -336,7 +362,7 @@ export default function UserManagement() {
                   />
                </div>
                <Button onClick={() => handleTransaction('deposit')} disabled={submitting} className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-emerald-100 transition-all">
-                  {submitting ? "Authorizing..." : "Execute Refill"}
+                  {submitting ? "Authorizing..." : "Execute Deposit"}
                </Button>
             </div>
          </DialogContent>
@@ -344,9 +370,9 @@ export default function UserManagement() {
 
       {/* 💰 WITHDRAW MODAL */}
       <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
-         <DialogContent className="max-w-md rounded-[2.5rem] border-none p-0 overflow-hidden font-sans">
-            <div className="bg-orange-500 p-10 text-white relative h-32 flex items-center">
-               <h2 className="text-2xl font-black tracking-tight">Liquidity Payout</h2>
+         <DialogContent className="max-w-xl w-[95vw] rounded-[2.5rem] border-none p-0 overflow-hidden font-sans max-h-[90vh] overflow-y-auto">
+            <div className="bg-orange-500 p-10 text-white relative min-h-[140px] flex items-center">
+               <h2 className="text-2xl font-black tracking-tight">Liquidity Withdraw</h2>
                <div className="absolute -bottom-6 right-10 w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center text-orange-500">
                   <ArrowDownLeft size={32} />
                </div>
@@ -369,8 +395,74 @@ export default function UserManagement() {
                   />
                </div>
                <Button onClick={() => handleTransaction('withdraw')} disabled={submitting} className="w-full h-16 bg-orange-600 hover:bg-orange-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-orange-100 transition-all">
-                  {submitting ? "Authorizing..." : "Execute Payout"}
+                  {submitting ? "Authorizing..." : "Execute Withdraw"}
                </Button>
+            </div>
+         </DialogContent>
+      </Dialog>
+
+      {/* 📋 PLAYER DETAILS MODAL */}
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+         <DialogContent className="max-w-xl w-[95vw] rounded-[2.5rem] border-none p-0 overflow-hidden font-sans max-h-[90vh] overflow-y-auto">
+            <div className="bg-slate-900 p-10 text-white relative min-h-[140px] flex items-center">
+               <h2 className="text-2xl font-black tracking-tight">Node Insight</h2>
+               <div className="absolute -bottom-6 right-10 w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center text-slate-900">
+                  <CreditCard size={32} />
+               </div>
+            </div>
+            <div className="p-10 pt-16 space-y-8">
+               <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-2xl">
+                     {selectedUser?.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                     <p className="text-xl font-black text-slate-900 leading-none">{selectedUser?.username}</p>
+                     <p className="text-sm font-bold text-slate-400 mt-1">{selectedUser?.phoneNumber}</p>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Balance</p>
+                     <p className="text-2xl font-black text-slate-900 mt-1">${selectedUser?.balance.toFixed(2)}</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Withdrawable</p>
+                     <p className="text-2xl font-black text-emerald-600 mt-1">${selectedUser?.withdrawable.toFixed(2)}</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bonus Credit</p>
+                     <p className="text-xl font-black text-slate-600 mt-1">${selectedUser?.bonusBalance.toFixed(2)}</p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Non-Withdrawable</p>
+                     <p className="text-xl font-black text-slate-600 mt-1">${selectedUser?.non_withdrawable.toFixed(2)}</p>
+                  </div>
+               </div>
+
+               <div className="p-6 rounded-3xl border-2 border-dashed border-slate-100 space-y-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Node Health Status</p>
+                  <div className="flex justify-around items-center pt-2">
+                     <div className="text-center">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mx-auto mb-2">
+                           <Check size={18} />
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-500 uppercase">Verified</p>
+                     </div>
+                     <div className="text-center">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mx-auto mb-2">
+                           <Check size={18} />
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-500 uppercase">Active</p>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="flex gap-4">
+                  <Button onClick={() => setShowDetailsModal(false)} className="w-full h-14 bg-slate-900 hover:bg-black text-white font-black rounded-2xl shadow-xl transition-all">
+                     Dismiss Insight
+                  </Button>
+               </div>
             </div>
          </DialogContent>
       </Dialog>
